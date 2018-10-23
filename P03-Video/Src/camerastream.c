@@ -93,7 +93,7 @@ void VIDEO_CameraProcess(void) {
 	switch(camera_status) {
 		
 		case CAMERA_STATUS_IDLE:
-					
+			TIMER_Config(&htim3);
 			/* Start the Camera Capture */
 			if (capture_mode == CAMERA_CONTINUOUS) {
 				BSP_CAMERA_ContinuousStart((uint8_t *)CAMERA_FRAME_BUFFER);
@@ -102,25 +102,27 @@ void VIDEO_CameraProcess(void) {
 				CAMERA_Delay(1000);
 				BSP_CAMERA_SnapshotStart((uint8_t *)CAMERA_FRAME_BUFFER);
 			}
-			
+			TIMER_Start(&htim3);
 			camera_status = CAMERA_STATUS_CAPTURE;
 			break;
 		
 		case CAMERA_STATUS_CAPTURE:
+			//BSP_LED_On(LED1);
 			camera_status = CAMERA_STATUS_CAPTURE;
 			VIDEO_AcquireUserButton();
 		break;
 		
 		case CAMERA_STATUS_PAUSE:
 			// Hay que suspender la captura de imagenes
-		
+			BSP_CAMERA_Suspend();
+			//BSP_LED_Off(LED1);
 			camera_status = CAMERA_STATUS_PAUSE;
 			VIDEO_AcquireUserButton();
 		break;
 		
 		case CAMERA_STATUS_RESUME:
 			// Hay que reanudar la captura de imagenes
-		
+			BSP_CAMERA_Resume();
 			camera_status = CAMERA_STATUS_CAPTURE;
 		break;
 		
@@ -138,6 +140,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *timer_handler)
 	
 	if (timer_handler->Instance == TIM3) {
 		// Your code here
+		BSP_LED_Toggle(LED1);
 	}
 }
 
@@ -147,8 +150,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *timer_handler)
   * @retval None
   */
 void VIDEO_CAMERA_Brightness_Down(void) {
-
-	
+	camera_brightness_level = (camera_brightness_level>-2)?(camera_brightness_level-1):(-2);
+	BSP_CAMERA_ContrastBrightnessConfig((uint32_t)(camera_contrast_level+7),(uint32_t)(camera_brightness_level+2));
 	return;
 }
 
@@ -158,8 +161,8 @@ void VIDEO_CAMERA_Brightness_Down(void) {
   * @retval None
   */
 void VIDEO_CAMERA_Brightness_Up(void) {
-
-	
+	camera_brightness_level = (camera_brightness_level<2)?(camera_brightness_level+1):(2);
+	BSP_CAMERA_ContrastBrightnessConfig((uint32_t)(camera_contrast_level+7),(uint32_t)(camera_brightness_level+2));
 	return;
 }
 
@@ -169,8 +172,8 @@ void VIDEO_CAMERA_Brightness_Up(void) {
   * @retval None
   */
 void VIDEO_CAMERA_Contrast_Down(void) {
-
-	
+	camera_contrast_level = (camera_contrast_level>-2)?(camera_contrast_level-1):(-2);
+	BSP_CAMERA_ContrastBrightnessConfig((uint32_t)(camera_contrast_level+7),(uint32_t)(camera_brightness_level+2));	
 	return;
 }
 
@@ -181,8 +184,8 @@ void VIDEO_CAMERA_Contrast_Down(void) {
   * @retval None
   */
 void VIDEO_CAMERA_Contrast_Up(void) {
-
-	
+	camera_contrast_level = (camera_contrast_level<2)?(camera_contrast_level+1):(2);
+	BSP_CAMERA_ContrastBrightnessConfig((uint32_t)(camera_contrast_level+7),(uint32_t)(camera_brightness_level+2));	
 	return;
 }
 
@@ -192,8 +195,10 @@ void VIDEO_CAMERA_Contrast_Up(void) {
   * @retval None
   */
 void VIDEO_CAMERA_Antique_Effect(uint8_t state) {
-	
-	
+	if(state)
+		BSP_CAMERA_ColorEffectConfig(CAMERA_COLOR_EFFECT_ANTIQUE);
+	else
+		BSP_CAMERA_ColorEffectConfig(CAMERA_COLOR_EFFECT_NONE);
 	return;
 }
 
@@ -204,9 +209,10 @@ void VIDEO_CAMERA_Antique_Effect(uint8_t state) {
   * @retval None
   */
 void VIDEO_CAMERA_BW_Effect(uint8_t state) {
-
-	
-	
+	if(state)
+		BSP_CAMERA_BlackWhiteConfig(CAMERA_BLACK_WHITE_BW);
+	else
+		BSP_CAMERA_BlackWhiteConfig(CAMERA_BLACK_WHITE_NORMAL);
 	return;
 }
 
@@ -237,9 +243,18 @@ static void VIDEO_AcquireUserButton(void)
 {
 	if(BSP_PB_GetState(BUTTON_KEY) != GPIO_PIN_RESET) {
 				// Code executed when USER button pressed
-		
-		
-		
+		switch (camera_status) {
+				case CAMERA_STATUS_PAUSE:
+					camera_status = CAMERA_STATUS_RESUME;
+					break;
+
+				case CAMERA_STATUS_CAPTURE:
+					camera_status = CAMERA_STATUS_PAUSE;
+					break;
+
+				default:
+					break;
+				}
 		
 				// Antes de abandonar la funcion, se esperan 250ms
 				HAL_Delay(250);
